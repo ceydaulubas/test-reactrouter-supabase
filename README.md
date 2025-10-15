@@ -52,7 +52,7 @@ P.S. It’s ok to merge `main` branch into your own feature branch to solve conf
 ### Code style guide
 
 - Aim for 1) readability, then 2) minimalism/DRY:ness: _“Code is read more than it is written”_.
-- Use `React.FC` for components.
+- Use functional components: `function` or `React.FC`.
 - Use a TypeScript `interface` called `...Props` for complex function arguments, e.g: `const CategoryCard: React.FC<CategoryCardProps>`
 - Event handlers starts with `handle`, props with `on`: `onPress={handlePressButton}`.
 - Organise your `import`s in groups: external imports, business logic, components, assets.
@@ -60,7 +60,7 @@ P.S. It’s ok to merge `main` branch into your own feature branch to solve conf
 
 ### How to build a typical CRUD view in React Router v7 Framework
 
-- Make a Supabase/Postgres SQL view with all columns you need, e.g. `view_categories`
+- If your view references a lot of tables, make a Supabase/Postgres SQL view with all columns you need, e.g. `view_categories`
 - Create a file for your page/route (e.g. `app/routes/my-page.tsx`) with this structure:
   1.  Load data: `loader` (React Router v7 Framework)
   2.  Render: `export default function MyPageName` (React component).
@@ -68,7 +68,20 @@ P.S. It’s ok to merge `main` branch into your own feature branch to solve conf
 
 ## Test tasks
 
-### Test task 1: Brand selector
+### Test task 1: Brand CRUD page
+
+We want to be able to create/update/delete brands on `/:teamSlug/brands`.
+
+Notes:
+
+- Brands have name, slug, logo_url.
+- Each Template will have 0 or 1 Brand.
+- This requires database migrations, backend code, and frontend code.
+- React Router v7 Framework contains data loading, actions, helpers for client-server data transfer.
+
+Submit your code as a [PR in a forked, private repo](#development-workflow). Good luck!
+
+### Test task 2: Brand selector
 
 We want to be able to filter Video Templates based on Brand, e.g. `?brand=vio-ljusfabrik`:
 
