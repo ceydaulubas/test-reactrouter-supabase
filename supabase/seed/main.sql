@@ -29,6 +29,17 @@ INSERT INTO public.templates
 VALUES 
   ('550e8400-e29b-41d4-a716-446655440001', 'Video Template 1', 'Example product video', '5e44edd3-df5d-4ff1-84f4-0ca7d7ba1704', '813b6b64-f5f4-49ea-9719-c49db026d937', '/video_placeholder.svg', 12110, NOW(), NOW());
 
+-- Brands
+INSERT INTO public.brands
+  (id, team_id, name, slug, logo_url, created_at, updated_at)
+VALUES
+  ('770e8400-e29b-41d4-a716-446655440001', '5e44edd3-df5d-4ff1-84f4-0ca7d7ba1704', 'Vio Ljusfabrik', 'vio-ljusfabrik', NULL, NOW(), NOW()),
+  ('770e8400-e29b-41d4-a716-446655440002', '5e44edd3-df5d-4ff1-84f4-0ca7d7ba1704', 'Nordic Coffee', 'nordic-coffee', NULL, NOW(), NOW());
+
+UPDATE public.templates
+SET brand_id = '770e8400-e29b-41d4-a716-446655440001'
+WHERE id = '550e8400-e29b-41d4-a716-446655440001';
+
 -- template locales
 INSERT INTO public.template_locales
   (id, template_id, locale, last_render_url, thumbnail_url, created_at, updated_at)
