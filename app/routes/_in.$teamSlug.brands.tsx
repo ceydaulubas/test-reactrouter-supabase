@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Form,
   Link,
@@ -8,7 +9,7 @@ import {
   type MetaFunction,
 } from 'react-router';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { Building2, ImageIcon, Plus, Save, Trash2 } from 'lucide-react';
+import { Building2, ImageIcon, Pencil, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '~/components/ui/button';
 import {
@@ -278,6 +279,126 @@ function BrandLogo({ brand }: { brand: Brand }) {
   );
 }
 
+interface BrandCardProps {
+  brand: Brand;
+  isSubmitting: boolean;
+}
+
+function BrandCard({ brand, isSubmitting }: BrandCardProps) {
+  const [name, setName] = useState(brand.name);
+  const [slug, setSlug] = useState(brand.slug);
+  const [logoUrl, setLogoUrl] = useState(brand.logo_url ?? '');
+
+  const hasChanges =
+    name !== brand.name ||
+    slug !== brand.slug ||
+    logoUrl !== (brand.logo_url ?? '');
+  const canEdit = name.trim().length > 0 && normalizeSlug(slug).length > 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start gap-4">
+          <BrandLogo brand={brand} />
+          <div className="min-w-0 flex-1">
+            <CardTitle className="truncate">{brand.name}</CardTitle>
+            <CardDescription className="truncate">
+              /{brand.slug}
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Form method="post" className="space-y-4">
+          <input type="hidden" name="intent" value="update" />
+          <input type="hidden" name="brand_id" value={brand.id} />
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor={`name-${brand.id}`}>Name</Label>
+              <Input
+                id={`name-${brand.id}`}
+                name="name"
+                value={name}
+                onChange={event => setName(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`slug-${brand.id}`}>Slug</Label>
+              <Input
+                id={`slug-${brand.id}`}
+                name="slug"
+                value={slug}
+                onChange={event => setSlug(event.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor={`logo-url-${brand.id}`}>Logo URL</Label>
+            <Input
+              id={`logo-url-${brand.id}`}
+              name="logo_url"
+              value={logoUrl}
+              onChange={event => setLogoUrl(event.target.value)}
+            />
+          </div>
+
+          <Button
+            type="submit"
+            disabled={isSubmitting || !hasChanges || !canEdit}
+            size="sm"
+          >
+            <Pencil className="h-4 w-4" />
+            Edit
+          </Button>
+        </Form>
+
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={isSubmitting}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete brand</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete {brand.name}?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Form method="post">
+                <input type="hidden" name="intent" value="delete" />
+                <input type="hidden" name="brand_id" value={brand.id} />
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  disabled={isSubmitting}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </Button>
+              </Form>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function BrandsPage() {
   const { team, brands, pagination } = useLoaderData<typeof loader>() as {
     team: Pick<Team, 'id' | 'name' | 'slug'>;
@@ -375,99 +496,11 @@ export default function BrandsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {brands.map(brand => (
-            <Card key={brand.id}>
-              <CardHeader>
-                <div className="flex items-start gap-4">
-                  <BrandLogo brand={brand} />
-                  <div className="min-w-0 flex-1">
-                    <CardTitle className="truncate">{brand.name}</CardTitle>
-                    <CardDescription className="truncate">
-                      /{brand.slug}
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Form method="post" className="space-y-4">
-                  <input type="hidden" name="intent" value="update" />
-                  <input type="hidden" name="brand_id" value={brand.id} />
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor={`name-${brand.id}`}>Name</Label>
-                      <Input
-                        id={`name-${brand.id}`}
-                        name="name"
-                        defaultValue={brand.name}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`slug-${brand.id}`}>Slug</Label>
-                      <Input
-                        id={`slug-${brand.id}`}
-                        name="slug"
-                        defaultValue={brand.slug}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor={`logo-url-${brand.id}`}>Logo URL</Label>
-                    <Input
-                      id={`logo-url-${brand.id}`}
-                      name="logo_url"
-                      defaultValue={brand.logo_url ?? ''}
-                    />
-                  </div>
-
-                  <Button type="submit" disabled={isSubmitting} size="sm">
-                    <Save className="h-4 w-4" />
-                    Save
-                  </Button>
-                </Form>
-
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      disabled={isSubmitting}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Delete brand</DialogTitle>
-                      <DialogDescription>
-                        Are you sure you want to delete {brand.name}?
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                      <DialogClose asChild>
-                        <Button type="button" variant="outline">
-                          Cancel
-                        </Button>
-                      </DialogClose>
-                      <Form method="post">
-                        <input type="hidden" name="intent" value="delete" />
-                        <input type="hidden" name="brand_id" value={brand.id} />
-                        <Button
-                          type="submit"
-                          variant="destructive"
-                          disabled={isSubmitting}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </Button>
-                      </Form>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </CardContent>
-            </Card>
+            <BrandCard
+              key={`${brand.id}:${brand.updated_at}`}
+              brand={brand}
+              isSubmitting={isSubmitting}
+            />
           ))}
         </div>
       )}
