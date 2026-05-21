@@ -18,6 +18,16 @@ import {
   CardHeader,
   CardTitle,
 } from '~/components/ui/card';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '~/components/ui/dialog';
 import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 import { requireAuthWithClient, ensureUserProfile } from '../lib/auth.server';
@@ -416,26 +426,46 @@ export default function BrandsPage() {
                   </Button>
                 </Form>
 
-                <Form
-                  method="post"
-                  onSubmit={event => {
-                    if (!globalThis.confirm(`Delete ${brand.name}?`)) {
-                      event.preventDefault();
-                    }
-                  }}
-                >
-                  <input type="hidden" name="intent" value="delete" />
-                  <input type="hidden" name="brand_id" value={brand.id} />
-                  <Button
-                    type="submit"
-                    variant="destructive"
-                    size="sm"
-                    disabled={isSubmitting}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </Button>
-                </Form>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      disabled={isSubmitting}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Delete brand</DialogTitle>
+                      <DialogDescription>
+                        Are you sure you want to delete {brand.name}?
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button type="button" variant="outline">
+                          Cancel
+                        </Button>
+                      </DialogClose>
+                      <Form method="post">
+                        <input type="hidden" name="intent" value="delete" />
+                        <input type="hidden" name="brand_id" value={brand.id} />
+                        <Button
+                          type="submit"
+                          variant="destructive"
+                          disabled={isSubmitting}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </Button>
+                      </Form>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </CardContent>
             </Card>
           ))}
