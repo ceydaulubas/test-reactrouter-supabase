@@ -1,5 +1,6 @@
 import {
   Form,
+  Link,
   redirect,
   useActionData,
   useLoaderData,
@@ -25,6 +26,7 @@ import type { Brand, Team } from '~/types/global';
 import type { Database } from '~/types/supabase';
 
 type TypedSupabaseClient = SupabaseClient<Database>;
+const BRANDS_PAGE_SIZE = 6;
 
 interface BrandFormValues {
   name: string;
@@ -50,6 +52,21 @@ function normalizeSlug(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+function getPageParam(request: Request) {
+  const url = new URL(request.url);
+  const page = Number(url.searchParams.get('page') || '1');
+
+  if (!Number.isInteger(page) || page < 1) {
+    return 1;
+  }
+
+  return page;
+}
+
+function getBrandsPath(teamSlug: string, page: number) {
+  return page <= 1 ? `/${teamSlug}/brands` : `/${teamSlug}/brands?page=${page}`;
 }
 
 function getBrandFormValues(formData: FormData): BrandFormResult {
@@ -131,18 +148,42 @@ export async function loader({
   }
 
   const team = await getTeamForUser(supabaseClient, user.id, params.teamSlug);
+  const page = getPageParam(request);
+  const from = (page - 1) * BRANDS_PAGE_SIZE;
+  const to = from + BRANDS_PAGE_SIZE - 1;
 
-  const { data: brands, error } = await supabaseClient
+  const {
+    data: brands,
+    error,
+    count,
+  } = await supabaseClient
     .from('brands')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('team_id', team.id)
-    .order('name', { ascending: true });
+    .order('created_at', { ascending: false })
+    .range(from, to);
 
   if (error) {
     throw new Error('Failed to load brands');
   }
 
-  return { team, brands: brands || [] };
+  const totalCount = count || 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / BRANDS_PAGE_SIZE));
+
+  if (page > totalPages && totalCount > 0) {
+    return redirect(getBrandsPath(team.slug, totalPages));
+  }
+
+  return {
+    team,
+    brands: brands || [],
+    pagination: {
+      page,
+      pageSize: BRANDS_PAGE_SIZE,
+      totalCount,
+      totalPages,
+    },
+  };
 }
 
 export async function action({
@@ -154,6 +195,7 @@ export async function action({
 }) {
   const { user, supabaseClient } = await requireAuthWithClient(request);
   const team = await getTeamForUser(supabaseClient, user.id, params.teamSlug);
+  const page = getPageParam(request);
   const formData = await request.formData();
   const intent = getStringValue(formData, 'intent');
 
@@ -186,7 +228,7 @@ export async function action({
 
     if (error) return { error: getMutationErrorMessage(error) };
 
-    return redirect(`/${team.slug}/brands`);
+    return redirect(getBrandsPath(team.slug, page));
   }
 
   if (intent === 'delete') {
@@ -202,7 +244,7 @@ export async function action({
 
     if (error) return { error: error.message };
 
-    return redirect(`/${team.slug}/brands`);
+    return redirect(getBrandsPath(team.slug, page));
   }
 
   return { error: 'Invalid action.' };
@@ -227,13 +269,30 @@ function BrandLogo({ brand }: { brand: Brand }) {
 }
 
 export default function BrandsPage() {
-  const { team, brands } = useLoaderData<typeof loader>() as {
+  const { team, brands, pagination } = useLoaderData<typeof loader>() as {
     team: Pick<Team, 'id' | 'name' | 'slug'>;
     brands: Brand[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      totalCount: number;
+      totalPages: number;
+    };
   };
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state !== 'idle';
+  const createFormKey = pagination.totalCount;
+  const firstBrandNumber =
+    pagination.totalCount === 0
+      ? 0
+      : (pagination.page - 1) * pagination.pageSize + 1;
+  const lastBrandNumber = Math.min(
+    pagination.page * pagination.pageSize,
+    pagination.totalCount
+  );
+  const hasPreviousPage = pagination.page > 1;
+  const hasNextPage = pagination.page < pagination.totalPages;
 
   return (
     <div className="space-y-6">
@@ -262,6 +321,7 @@ export default function BrandsPage() {
         </div>
 
         <Form
+          key={createFormKey}
           method="post"
           className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_auto]"
         >
@@ -292,7 +352,8 @@ export default function BrandsPage() {
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">All brands</h2>
         <span className="text-sm text-muted-foreground">
-          {brands.length} {brands.length === 1 ? 'brand' : 'brands'}
+          {pagination.totalCount}{' '}
+          {pagination.totalCount === 1 ? 'brand' : 'brands'}
         </span>
       </div>
 
@@ -378,6 +439,44 @@ export default function BrandsPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {pagination.totalCount > pagination.pageSize && (
+        <div className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Showing {firstBrandNumber}-{lastBrandNumber} of{' '}
+            {pagination.totalCount}
+          </p>
+          <div className="flex items-center gap-2">
+            {hasPreviousPage ? (
+              <Button variant="outline" size="sm" asChild>
+                <Link to={getBrandsPath(team.slug, pagination.page - 1)}>
+                  Previous
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" disabled>
+                Previous
+              </Button>
+            )}
+
+            <span className="min-w-20 text-center text-sm text-muted-foreground">
+              Page {pagination.page} of {pagination.totalPages}
+            </span>
+
+            {hasNextPage ? (
+              <Button variant="outline" size="sm" asChild>
+                <Link to={getBrandsPath(team.slug, pagination.page + 1)}>
+                  Next
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" disabled>
+                Next
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>
