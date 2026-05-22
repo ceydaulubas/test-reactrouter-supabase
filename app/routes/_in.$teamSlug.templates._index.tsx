@@ -1,5 +1,9 @@
-import { useState } from 'react';
-import { useNavigate, useLoaderData, type MetaFunction } from 'react-router';
+import {
+  redirect,
+  useNavigate,
+  useLoaderData,
+  type MetaFunction,
+} from 'react-router';
 import { requireAuthWithClient, ensureUserProfile } from '../lib/auth.server';
 import type { TemplateWithLocales } from '../types/global';
 import {
@@ -9,11 +13,26 @@ import {
 import { appService } from '~/services/app';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select';
 import { Play, Globe, Clock } from 'lucide-react';
+
+const ALL_BRANDS_VALUE = 'all-brands';
 
 export const meta: MetaFunction = () => {
   return [{ title: `Video Templates - ${appService.strings.app.title}` }];
 };
+
+function getTemplatesPath(teamSlug: string, brandSlug?: string) {
+  return brandSlug
+    ? `/${teamSlug}/templates?brand=${encodeURIComponent(brandSlug)}`
+    : `/${teamSlug}/templates`;
+}
 
 export async function loader({
   request,
@@ -53,9 +72,28 @@ export async function loader({
   if (memberError || !teamMember) {
     throw new Error('Access denied: You are not a member of this team');
   }
+  const url = new URL(request.url);
+  const selectedBrandSlug = url.searchParams.get('brand') || '';
+
+  const { data: brands, error: brandsError } = await supabaseClient
+    .from('brands')
+    .select('id, name, slug')
+    .eq('team_id', team.id)
+    .order('name', { ascending: true });
+
+  if (brandsError) {
+    throw new Error('Failed to load brands');
+  }
+  const selectedBrand = selectedBrandSlug
+    ? brands?.find(brand => brand.slug === selectedBrandSlug)
+    : null;
+
+  if (selectedBrandSlug && !selectedBrand) {
+    return redirect(getTemplatesPath(team.slug));
+  }
 
   // Build query for templates
-  const templatesQuery = supabaseClient
+  let templatesQuery = supabaseClient
     .from('templates')
     .select(
       `
@@ -73,6 +111,10 @@ export async function loader({
     )
     .eq('team_id', team.id);
 
+  if (selectedBrand) {
+    templatesQuery = templatesQuery.eq('brand_id', selectedBrand.id);
+  }
+
   const { data: templates, error } = await templatesQuery.order('created_at', {
     ascending: false,
   });
@@ -81,7 +123,13 @@ export async function loader({
     throw new Error('Failed to load templates');
   }
 
-  return { user, team, templates: templates || [] };
+  return {
+    user,
+    team,
+    brands: brands || [],
+    selectedBrandSlug,
+    templates: templates || [],
+  };
 }
 
 // Helper function to get template status based on locales
@@ -92,7 +140,7 @@ function getTemplateStatus(
   if (locales.length === 0) return 'draft';
   if (
     locales.some(
-      (locale: { last_render_url?: string }) => locale.last_render_url
+      (locale: { last_render_url: string | null }) => locale.last_render_url
     )
   )
     return 'completed';
@@ -121,12 +169,10 @@ function formatTemplateDuration(template: TemplateWithLocales) {
 
 export default function TemplatesPage() {
   const navigate = useNavigate();
-  const { user, team, templates } = useLoaderData<typeof loader>();
-  const [searchQuery] = useState('');
+  const { user, team, templates, brands, selectedBrandSlug } =
+    useLoaderData<typeof loader>();
 
-  const filteredTemplates = templates.filter(template =>
-    template.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredTemplates = templates;
 
   const getStatusColor = (status: 'completed' | 'in-progress' | 'draft') => {
     switch (status) {
@@ -153,8 +199,44 @@ export default function TemplatesPage() {
       navigate(`/${team.slug}/templates/${templateId}/en/edit`);
     }
   };
+
+  const handleBrandChange = (value: string) => {
+    if (value === ALL_BRANDS_VALUE) {
+      navigate(getTemplatesPath(team.slug));
+      return;
+    }
+
+    navigate(getTemplatesPath(team.slug, value));
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Video Templates
+          </h1>
+          <p className="text-sm text-muted-foreground">{team.name}</p>
+        </div>
+
+        <Select
+          value={selectedBrandSlug || ALL_BRANDS_VALUE}
+          onValueChange={handleBrandChange}
+        >
+          <SelectTrigger className="w-full sm:w-64">
+            <SelectValue placeholder="Brand" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_BRANDS_VALUE}>All brands</SelectItem>
+            {brands.map(brand => (
+              <SelectItem key={brand.id} value={brand.slug}>
+                {brand.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Templates Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredTemplates.map((template, index) => (
@@ -244,7 +326,7 @@ export default function TemplatesPage() {
           <div className="text-muted-foreground">
             <Globe className="h-12 w-12 mx-auto mb-4 opacity-50 animate-pulse" />
             <p className="text-lg mb-2">No templates found</p>
-            <p>Try adjusting your search or create a new template</p>
+            <p>Try selecting another brand or create a new template</p>
           </div>
         </div>
       )}
